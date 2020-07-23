@@ -11,7 +11,26 @@
  * limitations under the License.
  */
 
-import Interceptor from './interceptor';
+/**
+ * @param {Array<[Function, Function]>} _
+ */
+function createInterceptor(_) {
+	return {
+		/**
+		 * @param {Function} done
+		 * @param {Function} error
+		 */
+		use(done, error) {
+			return _.push([done, error]) - 1;
+		},
+		/**
+		 * @param {number} id
+		 */
+		eject(id) {
+			delete _[id];
+		}
+	};
+}
 
 /**
  * @public
@@ -112,10 +131,17 @@ export default (function create(/** @type {Options} */ defaults) {
 	// 3b smaller:
 	// redaxios.spread = (fn) => /** @type {any} */ (fn.apply.bind(fn, fn));
 
+	/** request interceptors
+	 * @type {Array<[Function, Function]>} */
+	const _iReq = [];
+	/** response interceptors
+	 * @type {Array<[Function, Function]>} */
+	const _iRes = [];
+
 	/** @public */
 	redaxios.interceptors = {
-		request: new Interceptor(),
-		response: new Interceptor()
+		request: createInterceptor(_iReq),
+		response: createInterceptor(_iRes)
 	};
 
 	/**
@@ -166,9 +192,9 @@ export default (function create(/** @type {Options} */ defaults) {
 
 		if (_data) options.data = _data;
 
-		redaxios.interceptors.request.handlers.map((handler) => {
+		_iReq.map((handler) => {
 			if (handler) {
-				const resultConfig = handler.done(options);
+				const resultConfig = handler[0](options);
 				options = deepMerge(options, resultConfig || {});
 			}
 		});
@@ -220,32 +246,31 @@ export default (function create(/** @type {Options} */ defaults) {
 
 			const ok = options.validateStatus ? options.validateStatus(res.status) : res.ok;
 			if (!ok) {
-				redaxios.interceptors.response.handlers.map((handler) => {
-					if (handler && handler.error) {
-						handler.error(res);
+				_iRes.map((handler) => {
+					if (handler && handler[1]) {
+						handler[1](res);
 					}
 				});
 				const error = Promise.reject(response);
-				redaxios.interceptors.request.handlers.map((handler) => {
-					if (handler && handler.error) {
-						handler.error(error);
+				_iReq.map((handler) => {
+					if (handler && handler[1]) {
+						handler[1](error);
 					}
 				});
 				return error;
 			}
 
-			return res[options.responseType || 'text']()
-				.then((data) => {
-					response.data = data;
-					try {
-						response.data = JSON.parse(data);
-          }
-					catch (e) {}
-					redaxios.interceptors.response.handlers.map((handler) => {
-						response = (handler && handler.done(response)) || response;
-					});
-					return response;
-				})
+			return res[options.responseType || 'text']().then((data) => {
+				response.data = data;
+				try {
+					response.data = JSON.parse(data);
+				}
+				catch (e) {}
+				_iRes.map((handler) => {
+					response = (handler && handler[0](response)) || response;
+				});
+				return response;
+			});
 		});
 	}
 

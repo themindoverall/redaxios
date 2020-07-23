@@ -20,13 +20,13 @@ function createInterceptor(_) {
 		 * @param {Function} done
 		 * @param {Function} error
 		 */
-		use: function (done, error) {
+		use(done, error) {
 			return _.push([done, error]) - 1;
 		},
 		/**
 		 * @param {number} id
 		 */
-		eject: function (id) {
+		eject(id) {
 			delete _[id];
 		}
 	};
@@ -260,18 +260,17 @@ export default (function create(/** @type {Options} */ defaults) {
 				return error;
 			}
 
-			return res[options.responseType || 'text']()
-				.then((data) => {
-					response.data = data;
-					try {
-						response.data = JSON.parse(data);
-					}
-					catch (e) {}
-					_iRes.map((handler) => {
-						response = (handler && handler[0](response)) || response;
-					});
-					return response;
+			return res[options.responseType || 'text']().then((data) => {
+				response.data = data;
+				try {
+					response.data = JSON.parse(data);
+				}
+				catch (e) {}
+				_iRes.map((handler) => {
+					response = (handler && handler[0](response)) || response;
 				});
+				return response;
+			});
 		});
 	}
 
